@@ -5,16 +5,32 @@
 ## 界面展示
 
 ### 管理员首页
+
 ![管理员首页](docs/images/dashboard.png)
 
 ### 学员档案
+
 ![学员档案](docs/images/students.png)
 
 ### 课表与考勤
+
 ![课表与考勤](docs/images/schedule.png)
 
-### 作品与点评
-![作品与点评](docs/images/works.png)
+### 考勤登记
+
+![考勤登记](docs/images/attendance.png)
+
+### 作品版本与点评
+
+![作品版本与点评](docs/images/works.png)
+
+### 学习进度
+
+![学习进度](docs/images/progress.png)
+
+### 登录页面
+
+![登录页面](docs/images/login.png)
 
 ## 功能
 
