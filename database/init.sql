@@ -1,0 +1,148 @@
+CREATE TABLE IF NOT EXISTS students (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,name VARCHAR(80) NOT NULL,gender VARCHAR(20),birthday DATE,
+ phone VARCHAR(30),guardian_name VARCHAR(80),guardian_phone VARCHAR(30),notes VARCHAR(2000),created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS teachers (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,name VARCHAR(80) NOT NULL,phone VARCHAR(30),specialty VARCHAR(255),created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS users (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,username VARCHAR(64) NOT NULL UNIQUE,password_hash VARCHAR(100) NOT NULL,
+ display_name VARCHAR(80) NOT NULL,role VARCHAR(20) NOT NULL,student_id BIGINT,teacher_id BIGINT,
+ read_only BOOLEAN NOT NULL DEFAULT FALSE,enabled BOOLEAN NOT NULL DEFAULT TRUE,auth_version INT NOT NULL DEFAULT 0,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_user_student FOREIGN KEY(student_id) REFERENCES students(id),
+ CONSTRAINT fk_user_teacher FOREIGN KEY(teacher_id) REFERENCES teachers(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS courses (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,name VARCHAR(100) NOT NULL,description VARCHAR(3000),total_lessons INT NOT NULL DEFAULT 12,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS rooms (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,name VARCHAR(100) NOT NULL,capacity INT NOT NULL,location VARCHAR(255),created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS classes (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,name VARCHAR(100) NOT NULL,course_id BIGINT NOT NULL,teacher_id BIGINT NOT NULL,
+ capacity INT NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_class_course FOREIGN KEY(course_id) REFERENCES courses(id),
+ CONSTRAINT fk_class_teacher FOREIGN KEY(teacher_id) REFERENCES teachers(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS files (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,owner_id BIGINT NOT NULL,original_name VARCHAR(255) NOT NULL,storage_key VARCHAR(255) NOT NULL UNIQUE,
+ content_type VARCHAR(100) NOT NULL,size BIGINT NOT NULL,provider VARCHAR(20) NOT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_file_owner FOREIGN KEY(owner_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS user_avatars (
+ user_id BIGINT PRIMARY KEY,file_id BIGINT NOT NULL,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ CONSTRAINT fk_avatar_user FOREIGN KEY(user_id) REFERENCES users(id),
+ CONSTRAINT fk_avatar_file FOREIGN KEY(file_id) REFERENCES files(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS resources (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,title VARCHAR(120) NOT NULL,class_id BIGINT NOT NULL,file_id BIGINT NOT NULL,
+ description VARCHAR(3000),created_by BIGINT NOT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_resource_class FOREIGN KEY(class_id) REFERENCES classes(id),
+ CONSTRAINT fk_resource_file FOREIGN KEY(file_id) REFERENCES files(id),
+ CONSTRAINT fk_resource_user FOREIGN KEY(created_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS notices (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,title VARCHAR(120) NOT NULL,content TEXT NOT NULL,class_id BIGINT,
+ created_by BIGINT NOT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_notice_class FOREIGN KEY(class_id) REFERENCES classes(id),
+ CONSTRAINT fk_notice_user FOREIGN KEY(created_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS notice_reads (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,notice_id BIGINT NOT NULL,user_id BIGINT NOT NULL,read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_notice_user(notice_id,user_id),
+ CONSTRAINT fk_read_notice FOREIGN KEY(notice_id) REFERENCES notices(id),
+ CONSTRAINT fk_read_user FOREIGN KEY(user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS feedback (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,user_id BIGINT NOT NULL,content TEXT NOT NULL,reply TEXT,status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,replied_at DATETIME,
+ CONSTRAINT fk_feedback_user FOREIGN KEY(user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS audit_logs (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,user_id BIGINT NOT NULL,action VARCHAR(80) NOT NULL,target_type VARCHAR(80) NOT NULL,
+ target_id VARCHAR(80),detail TEXT,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_audit_time(created_at),INDEX idx_audit_target(target_type,target_id),
+ CONSTRAINT fk_audit_user FOREIGN KEY(user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS schedule_guard (id BIGINT PRIMARY KEY) ENGINE=InnoDB;
+INSERT IGNORE INTO schedule_guard(id) VALUES (1);
+CREATE TABLE IF NOT EXISTS enrollments (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, student_id BIGINT NOT NULL, class_id BIGINT NOT NULL,
+ status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', effective_date DATE NOT NULL, end_date DATE NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ active_key VARCHAR(80) GENERATED ALWAYS AS (IF(status='ACTIVE',CONCAT(student_id,':',class_id),NULL)) STORED,
+ UNIQUE KEY uk_enrollment_active(active_key), KEY ix_enrollment_class(class_id,effective_date,end_date),
+ FOREIGN KEY(student_id) REFERENCES students(id), FOREIGN KEY(class_id) REFERENCES classes(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS transfers (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, enrollment_id BIGINT NOT NULL, new_enrollment_id BIGINT NOT NULL,
+ student_id BIGINT NOT NULL, from_class_id BIGINT NOT NULL, to_class_id BIGINT NOT NULL,
+ effective_date DATE NOT NULL, reason VARCHAR(1000) NOT NULL, created_by BIGINT NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(enrollment_id) REFERENCES enrollments(id), FOREIGN KEY(new_enrollment_id) REFERENCES enrollments(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS lessons (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, class_id BIGINT NOT NULL, teacher_id BIGINT NOT NULL, room_id BIGINT NOT NULL,
+ title VARCHAR(200) NOT NULL, start_time DATETIME NOT NULL, end_time DATETIME NOT NULL,
+ status VARCHAR(20) NOT NULL DEFAULT 'SCHEDULED', cancel_reason VARCHAR(1000), created_by BIGINT,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ KEY ix_lesson_time(start_time,end_time), KEY ix_lesson_class(class_id),
+ FOREIGN KEY(class_id) REFERENCES classes(id), FOREIGN KEY(teacher_id) REFERENCES teachers(id), FOREIGN KEY(room_id) REFERENCES rooms(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS lesson_participants (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, lesson_id BIGINT NOT NULL, student_id BIGINT NOT NULL,
+ kind VARCHAR(20) NOT NULL DEFAULT 'REGULAR', status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+ original_participant_id BIGINT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uk_lesson_student(lesson_id,student_id), KEY ix_participant_student(student_id),
+ FOREIGN KEY(lesson_id) REFERENCES lessons(id), FOREIGN KEY(student_id) REFERENCES students(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS attendance (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, participant_id BIGINT NOT NULL, status VARCHAR(20) NOT NULL,
+ remark VARCHAR(1000), recorded_by BIGINT NOT NULL, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uk_attendance_participant(participant_id), FOREIGN KEY(participant_id) REFERENCES lesson_participants(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS leaves (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, participant_id BIGINT NOT NULL, student_id BIGINT NOT NULL,
+ lesson_id BIGINT NOT NULL, reason VARCHAR(1000) NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+ review_comment VARCHAR(1000), reviewed_by BIGINT, reviewed_at DATETIME, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uk_leave_participant(participant_id), FOREIGN KEY(participant_id) REFERENCES lesson_participants(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS makeups (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, original_participant_id BIGINT NOT NULL, target_lesson_id BIGINT NOT NULL,
+ target_participant_id BIGINT NOT NULL, student_id BIGINT NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'ARRANGED',
+ reason VARCHAR(1000), created_by BIGINT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ completed_at DATETIME, cancelled_reason VARCHAR(1000),
+ active_origin BIGINT GENERATED ALWAYS AS (IF(status IN ('ARRANGED','COMPLETED'),original_participant_id,NULL)) STORED,
+ UNIQUE KEY uk_makeup_origin(active_origin), FOREIGN KEY(original_participant_id) REFERENCES lesson_participants(id),
+ FOREIGN KEY(target_lesson_id) REFERENCES lessons(id), FOREIGN KEY(target_participant_id) REFERENCES lesson_participants(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS makeup_suggestions (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, original_participant_id BIGINT NOT NULL, comment VARCHAR(1000) NOT NULL,
+ teacher_id BIGINT, created_by BIGINT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(original_participant_id) REFERENCES lesson_participants(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS tasks (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, class_id BIGINT NOT NULL, lesson_id BIGINT,
+ title VARCHAR(200) NOT NULL, description TEXT, due_date DATE, created_by BIGINT NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(class_id) REFERENCES classes(id), FOREIGN KEY(lesson_id) REFERENCES lessons(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS works (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, task_id BIGINT NOT NULL, student_id BIGINT NOT NULL,
+ title VARCHAR(200) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uk_work_task_student(task_id,student_id), FOREIGN KEY(task_id) REFERENCES tasks(id), FOREIGN KEY(student_id) REFERENCES students(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS work_versions (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, work_id BIGINT NOT NULL, file_id BIGINT NOT NULL,
+ version_no INT NOT NULL, description TEXT, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uk_work_version(work_id,version_no), FOREIGN KEY(work_id) REFERENCES works(id), FOREIGN KEY(file_id) REFERENCES files(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS reviews (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, version_id BIGINT NOT NULL, teacher_id BIGINT,
+ content TEXT NOT NULL, score INT, created_by BIGINT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(version_id) REFERENCES work_versions(id), FOREIGN KEY(teacher_id) REFERENCES teachers(id)
+) ENGINE=InnoDB;

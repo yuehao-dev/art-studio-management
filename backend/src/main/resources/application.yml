@@ -1,0 +1,54 @@
+server:
+  port: ${SERVER_PORT:18080}
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  error:
+    include-message: never
+spring:
+  application:
+    name: shise-studio
+  profiles:
+    default: dev
+  datasource:
+    url: ${STUDIO_DB_URL:jdbc:mysql://127.0.0.1:3306/studio?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${STUDIO_DB_USERNAME:studio}
+    password: ${STUDIO_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 8
+      minimum-idle: 2
+  sql:
+    init:
+      mode: never
+      encoding: UTF-8
+      schema-locations: classpath:schema-core.sql,classpath:schema-business.sql
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 1s
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    call-setters-on-nulls: true
+studio:
+  jwt-secret: ${JWT_SECRET:}
+  demo-password: ${STUDIO_DEMO_PASSWORD:Studio@2026}
+  redis-enabled: ${REDIS_ENABLED:false}
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    local-path: ${STORAGE_LOCAL_PATH:./uploads}
+    endpoint: ${OSS_ENDPOINT:https://oss-cn-beijing.aliyuncs.com}
+    bucket: ${OSS_BUCKET:}
+    access-key-id: ${OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+logging:
+  level:
+    com.shise.studio: INFO

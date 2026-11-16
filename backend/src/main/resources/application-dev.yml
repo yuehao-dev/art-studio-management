@@ -1,0 +1,6 @@
+spring:
+  sql:
+    init:
+      mode: always
+studio:
+  jwt-secret: ${JWT_SECRET:local-development-only-change-this-before-deploying-2026}

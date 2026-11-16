@@ -1,0 +1,23 @@
+[Unit]
+Description=Art Studio Management
+After=network.target mysql.service mysqld.service
+
+[Service]
+Type=simple
+User=studio
+Group=studio
+WorkingDirectory=/opt/art-studio
+EnvironmentFile=/opt/art-studio/.env
+ExecStart=/usr/bin/java -Xms128m -Xmx512m -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai -jar /opt/art-studio/studio.jar
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=143
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/art-studio/uploads
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>教务系统</title>
+  <rect width="64" height="64" rx="8" fill="#3168a8"/>
+  <path d="M13 17h12c3 0 5 1 7 3 2-2 4-3 7-3h12v29H39c-3 0-5 1-7 4-2-3-4-4-7-4H13Z"
+    fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M32 21v28" fill="none" stroke="#fff" stroke-width="4"/>
+</svg>
