@@ -2,7 +2,19 @@
 
 面向小型画室的教务管理系统，包含管理员、教师、学员及监护人只读授权。后端采用 Java 单体应用，前端使用 Vue，支持本地文件存储和阿里云 OSS 私有存储。
 
+## 界面展示
+
+### 管理员首页
 ![管理员首页](docs/images/dashboard.png)
+
+### 学员档案
+![学员档案](docs/images/students.png)
+
+### 课表与考勤
+![课表与考勤](docs/images/schedule.png)
+
+### 作品与点评
+![作品与点评](docs/images/works.png)
 
 ## 功能
 
