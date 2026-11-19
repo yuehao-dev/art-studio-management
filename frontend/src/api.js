@@ -36,7 +36,7 @@ client.interceptors.response.use(
   },
 );
 export const api = {
-  get: (url, params) => client.get(url, { params }),
+  get: (url, params, options = {}) => client.get(url, { ...options, params }),
   post: (url, data) => client.post(url, data),
   put: (url, data) => client.put(url, data),
   delete: (url) => client.delete(url),
@@ -59,10 +59,11 @@ export async function uploadAvatar(file) {
     .post("/profile/avatar", data, { timeout: 90000 })
     .then(normalizeAvatar);
 }
-export async function fileUrl(id, download = false) {
+export async function fileUrl(id, download = false, options = {}) {
   const data = await api.get(
     `/files/${id}/url`,
     download ? { download: true } : undefined,
+    options,
   );
   return normalizeFileUrl(data.url);
 }

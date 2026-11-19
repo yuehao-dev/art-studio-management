@@ -16,6 +16,7 @@ import {
 import { api } from "../api";
 import { auth, roleLabel } from "../auth";
 import { dateText } from "../pages";
+import WorkThumbnail from "../components/WorkThumbnail.vue";
 const router = useRouter();
 const data = ref(null),
   notices = ref([]),
@@ -337,7 +338,10 @@ onBeforeUnmount(() => {
   <div v-loading="loading" class="home-overview">
     <div class="home-heading">
       <div>
-        <h1>首页</h1>
+        <div class="home-eyebrow">教学工作台</div>
+        <h1>
+          首页 <span class="home-role">{{ roleLabel(auth.user) }}</span>
+        </h1>
         <p>
           {{ auth.user?.displayName }}，欢迎使用画室学员管理系统。<span>{{
             roleLabel(auth.user)
@@ -364,9 +368,10 @@ onBeforeUnmount(() => {
     />
     <div class="overview-stats">
       <button
-        v-for="item in statItems"
+        v-for="(item, index) in statItems"
         :key="item.label"
         class="stat-cell"
+        :class="`stat-tone-${index}`"
         @click="visit(item.path)"
       >
         <span>{{ item.label }}</span>
@@ -383,6 +388,19 @@ onBeforeUnmount(() => {
         /></el-icon>
       </button>
     </div>
+    <section class="panel shortcut-panel" aria-label="常用入口">
+      <h2>常用入口</h2>
+      <div>
+        <button
+          v-for="[title, path] in shortcuts"
+          :key="path"
+          @click="visit(path)"
+        >
+          <el-icon><component :is="shortcutIcon(path)" /></el-icon
+          ><span>{{ title }}</span>
+        </button>
+      </div>
+    </section>
     <div class="home-columns">
       <div class="home-column main-column">
         <section class="panel schedule-panel">
@@ -477,15 +495,20 @@ onBeforeUnmount(() => {
               :key="work.id"
               @click="visit('/works')"
             >
+              <WorkThumbnail
+                :key="`${work.id}:${work.latestVersion}:${refreshedAt}`"
+                :work-id="work.id"
+                :title="work.title"
+              />
               <div class="activity-main">
-                <strong>{{ work.title }}</strong
+                <strong :title="work.title">{{ work.title }}</strong
                 ><small
                   >{{ work.studentName }} ·
-                  {{ work.taskTitle || work.className }} · 第
-                  {{ work.latestVersion || work.versionCount }} 版</small
+                  {{ work.className }}</small
                 >
               </div>
               <div class="activity-meta">
+                第 {{ work.latestVersion || work.versionCount }} 版 ·
                 <span>{{
                   Number(work.reviewCount)
                     ? `${work.reviewCount} 条点评`
@@ -542,7 +565,7 @@ onBeforeUnmount(() => {
         </section>
       </div>
       <div class="home-column side-column">
-        <section class="panel">
+        <section class="panel todo-panel">
           <div class="panel-heading">
             <h2>{{ guardian ? "学员事项" : "待办事项" }}</h2>
             <span class="heading-note">{{
@@ -551,11 +574,14 @@ onBeforeUnmount(() => {
           </div>
           <div class="todo-list">
             <button
-              v-for="item in todoItems"
+              v-for="(item, index) in todoItems"
               :key="item.label"
               @click="visit(item.path)"
             >
-              <span
+              <i class="todo-number" aria-hidden="true">{{
+                String(index + 1).padStart(2, "0")
+              }}</i
+              ><span
                 >{{ item.label }}<small>{{ item.note }}</small></span
               ><strong :class="{ outstanding: item.count > 0 }">{{
                 data ? item.count : "—"
@@ -625,19 +651,6 @@ onBeforeUnmount(() => {
         </section>
       </div>
     </div>
-    <section class="panel shortcut-panel" aria-label="常用入口">
-      <h2>常用入口</h2>
-      <div>
-        <button
-          v-for="[title, path] in shortcuts"
-          :key="path"
-          @click="visit(path)"
-        >
-          <el-icon><component :is="shortcutIcon(path)" /></el-icon
-          ><span>{{ title }}</span>
-        </button>
-      </div>
-    </section>
     <el-dialog
       v-model="noticeVisible"
       :title="currentNotice?.title || '通知详情'"
@@ -665,27 +678,44 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   gap: 24px;
-  margin-bottom: 26px;
+  margin-bottom: 24px;
+}
+.home-eyebrow {
+  color: #087f8c;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 5px;
 }
 .home-heading h1 {
-  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 7px;
+  font-size: 26px;
+}
+.home-role {
+  font-size: 11px;
+  font-weight: 400;
+  color: #526d80;
+  background: #e5ecef;
+  border-radius: 4px;
+  padding: 3px 8px;
 }
 .home-heading p {
   margin: 0;
   font-size: 13px;
-  color: #7c8796;
+  color: #65768a;
   line-height: 1.8;
 }
 .home-heading p span {
-  margin-left: 12px;
-  font-size: 12px;
-  color: #929dab;
+  display: none;
 }
 .home-date {
   display: flex;
   align-items: center;
   gap: 18px;
-  color: #7c8796;
+  color: #65768a;
   white-space: nowrap;
   font-size: 12px;
 }
@@ -696,124 +726,174 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .stat-cell {
+  --stat-accent: #087f8c;
+  --stat-soft: #e9f5f5;
   position: relative;
   display: block;
   min-width: 0;
-  padding: 22px 24px;
+  padding: 21px 22px;
   text-align: left;
   background: #fff;
-  border: 1px solid #e6ebf0;
-  border-radius: 7px;
-  color: #68768a;
+  border: 1px solid #dfe8ec;
+  border-top: 3px solid var(--stat-accent);
+  border-radius: 8px;
+  color: #586d80;
+  transition: box-shadow 0.15s;
 }
 .stat-cell:hover {
-  border-color: #b7c9e1;
+  box-shadow: 0 5px 16px #15364712;
 }
 .stat-cell > span {
   font-size: 13px;
+  font-weight: 500;
 }
 .stat-cell > div {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 11px;
 }
 .stat-cell strong {
-  font-size: 30px;
+  font-size: 32px;
   line-height: 1.3;
   font-weight: 600;
-  color: #2c3b51;
+  color: #213b51;
   font-variant-numeric: tabular-nums;
 }
 .stat-cell small {
   font-size: 12px;
-  color: #8b97a7;
+  color: #748797;
 }
 .stat-cell p {
   margin: 10px 0 0;
   font-size: 11px;
   line-height: 1.7;
-  color: #939dab;
+  color: #778897;
 }
 .stat-icon {
   position: absolute;
-  right: 22px;
-  top: 22px;
+  right: 20px;
+  top: 18px;
   font-size: 21px;
-  color: #a2b6ce;
+  padding: 9px;
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  color: var(--stat-accent);
+  background: var(--stat-soft);
+}
+.stat-tone-0 {
+  background: #087f8c;
+  border-color: #087f8c;
+  color: #fff;
+}
+.stat-tone-0 strong {
+  color: #fff;
+}
+.stat-tone-0 small,
+.stat-tone-0 p {
+  color: #d4eeef;
+}
+.stat-tone-0 .stat-icon {
+  background: #ffffff1c;
+  color: #e7ffff;
+}
+.stat-tone-1 {
+  --stat-accent: #3b70ae;
+  --stat-soft: #edf3fb;
+}
+.stat-tone-2 {
+  --stat-accent: #bb7c32;
+  --stat-soft: #fdf2e2;
+}
+.stat-tone-3 {
+  --stat-accent: #368468;
+  --stat-soft: #eaf5ee;
 }
 .home-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(290px, 1fr);
-  gap: 24px;
+  gap: 22px;
   align-items: start;
 }
 .home-column {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
   min-width: 0;
 }
 .heading-note {
   margin-left: 12px;
   font-weight: 400;
   font-size: 11px;
-  color: #929dab;
+  color: #788b9b;
 }
 .panel-heading > .heading-note {
   margin-left: 0;
 }
 .overview-table :deep(.el-table__cell) {
-  padding-top: 16px;
-  padding-bottom: 16px;
+  padding-top: 14px;
+  padding-bottom: 14px;
 }
 .overview-table :deep(th.el-table__cell) {
-  padding-top: 9px;
-  padding-bottom: 9px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 .overview-table :deep(.cell) {
   padding-left: 20px;
-  padding-right: 14px;
+  padding-right: 12px;
 }
 .table-sub {
   display: block;
   font-size: 11px;
-  color: #8995a5;
-  margin-top: 5px;
+  color: #7b8b9a;
+  margin-top: 4px;
 }
 .inline-link {
   display: block;
   text-align: left;
-  color: #3c4a5e;
+  color: #304b60;
   padding: 0;
   background: none;
   border: 0;
   line-height: 1.7;
+  font-weight: 500;
 }
 .inline-link:hover,
 .in-session {
-  color: #3767aa;
+  color: #087f8c;
+}
+.todo-panel :deep(.panel-heading h2::before) {
+  background: #bf791f;
 }
 .todo-list {
-  padding: 0 22px;
+  padding: 0 20px;
 }
 .todo-list button {
   display: flex;
   gap: 12px;
   width: 100%;
   align-items: center;
-  padding: 18px 0;
+  padding: 17px 0;
   background: none;
   border: 0;
   border-bottom: 1px solid #edf0f4;
   text-align: left;
-  color: #536176;
+  color: #425c70;
 }
 .todo-list button:last-child {
   border-bottom: 0;
+}
+.todo-number {
+  align-self: flex-start;
+  padding-top: 2px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b9aa7;
 }
 .todo-list button > span {
   flex: 1;
@@ -821,84 +901,84 @@ onBeforeUnmount(() => {
 }
 .todo-list small {
   display: block;
-  margin-top: 6px;
+  margin-top: 5px;
   font-size: 11px;
-  color: #929dab;
+  color: #7d8e9d;
   line-height: 1.7;
 }
 .todo-list strong {
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 500;
-  color: #9ba6b3;
+  color: #9aa8b4;
   font-variant-numeric: tabular-nums;
 }
 .todo-list strong.outstanding {
-  color: #3767aa;
+  color: #af6a19;
+  background: #fff3e0;
+  border-radius: 5px;
+  min-width: 32px;
+  padding: 1px 6px;
+  text-align: center;
 }
 .todo-list .el-icon {
-  color: #a6afbb;
+  color: #8d9dab;
   font-size: 11px;
 }
 .todo-list button:hover > span {
-  color: #3767aa;
+  color: #087f8c;
 }
 .home-empty {
   padding: 44px 20px;
   text-align: center;
   font-size: 12px;
   line-height: 1.9;
-  color: #929dab;
+  color: #7c8d9d;
 }
 .activity-list {
-  padding: 0 22px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  padding: 20px;
 }
 .activity-list > button {
-  display: flex;
-  width: 100%;
-  gap: 18px;
-  justify-content: space-between;
-  align-items: center;
-  padding: 19px 0;
-  border: 0;
-  border-bottom: 1px solid #edf0f4;
-  background: none;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid #e5e9e9;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
   text-align: left;
 }
-.activity-list > button:last-child {
-  border-bottom: 0;
+.activity-list > button:hover {
+  border-color: #7bb9be;
 }
 .activity-main {
   min-width: 0;
+  padding: 12px 10px 8px;
 }
 .activity-main strong {
   display: block;
   font-size: 13px;
-  font-weight: 400;
-  color: #45536a;
+  font-weight: 500;
+  color: #354f62;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .activity-main small {
   display: block;
-  color: #8995a5;
+  color: #788b99;
   font-size: 11px;
-  margin-top: 7px;
+  margin-top: 6px;
   line-height: 1.7;
 }
 .activity-meta {
-  flex: 0 0 auto;
-  text-align: right;
+  padding: 0 10px 12px;
   font-size: 11px;
-  color: #718098;
+  color: #087f8c;
 }
 .activity-meta time {
-  display: block;
-  color: #9aa4b2;
-  margin-top: 7px;
-}
-.activity-list button:hover strong {
-  color: #3767aa;
+  display: none;
 }
 .bulletin-list {
   padding: 0 22px;
@@ -923,11 +1003,11 @@ onBeforeUnmount(() => {
 .bulletin-list strong {
   font-size: 13px;
   font-weight: 400;
-  color: #45536a;
+  color: #40596b;
   line-height: 1.8;
 }
 .bulletin-list button:hover strong {
-  color: #3767aa;
+  color: #087f8c;
 }
 .bulletin-list p {
   display: flex;
@@ -935,14 +1015,14 @@ onBeforeUnmount(() => {
   gap: 12px;
   margin: 8px 0 0;
   font-size: 11px;
-  color: #939dab;
+  color: #7d8f9e;
   line-height: 1.7;
 }
 .unread-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #3767aa;
+  background: #087f8c;
   flex: 0 0 auto;
 }
 .learning-body {
@@ -953,7 +1033,7 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   font-size: 12px;
-  color: #7b8798;
+  color: #728798;
   margin-bottom: 22px;
 }
 .learning-counts span {
@@ -963,51 +1043,56 @@ onBeforeUnmount(() => {
   column-gap: 6px;
 }
 .learning-counts strong {
-  color: #45536a;
+  color: #38566b;
   font-size: 20px;
   font-weight: 500;
 }
 .learning-body p {
   margin: 13px 0 0;
-  color: #939dab;
+  color: #7c8f9e;
   font-size: 11px;
   line-height: 1.9;
 }
 .shortcut-panel {
-  margin-top: 24px;
-  padding: 22px;
+  margin-bottom: 22px;
+  padding: 17px 20px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 .shortcut-panel h2 {
-  margin-bottom: 20px;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #5d7182;
 }
 .shortcut-panel > div {
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 .shortcut-panel button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 16px 10px;
-  border: 1px solid #edf0f4;
+  gap: 8px;
+  padding: 9px 5px;
+  border: 0;
   border-radius: 5px;
-  background: #fafbfc;
-  color: #5b6b81;
-  font-size: 13px;
+  background: #f1f6f7;
+  color: #456373;
+  font-size: 12px;
 }
 .shortcut-panel button:hover {
-  color: #3767aa;
-  border-color: #bacbe0;
-  background: #f7faff;
+  color: #087f8c;
+  background: #e3f2f3;
 }
 .shortcut-panel .el-icon {
-  color: #7992b1;
-  font-size: 18px;
+  color: #087f8c;
+  font-size: 17px;
 }
 .notice-meta {
-  color: #8995a5;
+  color: #788b9a;
   font-size: 12px;
   line-height: 1.9;
 }
@@ -1016,6 +1101,11 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
   line-height: 2;
   padding: 10px 0 20px;
+}
+@media (max-width: 1400px) {
+  .activity-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 1250px) {
   .home-columns {
@@ -1032,7 +1122,10 @@ onBeforeUnmount(() => {
     padding: 20px 18px;
   }
   .stat-icon {
-    right: 16px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    padding: 7px;
     font-size: 18px;
   }
   .stat-cell p {
@@ -1045,11 +1138,23 @@ onBeforeUnmount(() => {
   .learning-counts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .shortcut-panel > div {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .shortcut-panel {
+    display: block;
+  }
+  .shortcut-panel h2 {
+    margin-bottom: 12px;
+  }
+  .activity-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 1050px) {
+  .overview-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .shortcut-panel > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
   .home-columns {
     grid-template-columns: 1fr;
   }
@@ -1057,6 +1162,9 @@ onBeforeUnmount(() => {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
+  }
+  .activity-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 @media (max-width: 800px) {
@@ -1073,8 +1181,8 @@ onBeforeUnmount(() => {
   .stat-cell p {
     min-height: auto;
   }
-  .shortcut-panel {
-    margin-top: 20px;
+  .shortcut-panel > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 540px) {
@@ -1095,7 +1203,7 @@ onBeforeUnmount(() => {
     border-bottom: 1px solid #edf0f4;
     padding: 20px 0;
     background: none;
-    color: #536176;
+    color: #425e70;
   }
   .mobile-lesson-list button:last-child {
     border-bottom: 0;
@@ -1103,12 +1211,12 @@ onBeforeUnmount(() => {
   .mobile-lesson-date {
     flex: 0 0 86px;
     font-size: 17px;
-    color: #526c8e;
+    color: #087f8c;
   }
   .mobile-lesson-list small {
     display: block;
     font-size: 11px;
-    color: #8a96a6;
+    color: #7c8f9e;
     margin-top: 7px;
     line-height: 1.6;
   }
@@ -1122,19 +1230,17 @@ onBeforeUnmount(() => {
     overflow-wrap: anywhere;
   }
   .home-heading h1 {
-    font-size: 22px;
+    font-size: 23px;
+    gap: 10px;
   }
   .home-heading p {
     font-size: 12px;
   }
-  .home-heading p span {
-    display: none;
-  }
   .stat-cell {
-    padding: 18px 15px;
+    padding: 16px 14px;
   }
   .stat-cell strong {
-    font-size: 27px;
+    font-size: 28px;
   }
   .stat-cell p {
     min-height: 38px;
@@ -1146,22 +1252,18 @@ onBeforeUnmount(() => {
     display: flex;
   }
   .shortcut-panel {
-    padding: 18px;
+    padding: 16px;
   }
   .shortcut-panel > div {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .shortcut-panel button {
-    font-size: 12px;
-    gap: 8px;
-  }
-  .activity-meta time {
-    display: none;
+  .activity-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 16px;
   }
   .activity-main small {
     overflow-wrap: anywhere;
   }
-  .activity-list,
   .todo-list,
   .bulletin-list {
     padding: 0 18px;

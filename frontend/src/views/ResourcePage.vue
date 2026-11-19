@@ -21,6 +21,8 @@ import { api, fileUrl } from "../api";
 import { auth } from "../auth";
 import { pages, translate, dateText, optionLabel, f, select } from "../pages";
 import Fields from "../components/Fields.vue";
+import VersionCompare from "../components/VersionCompare.vue";
+import WorkThumbnail from "../components/WorkThumbnail.vue";
 
 const props = defineProps({ resource: String });
 const compactViewport = window.matchMedia("(max-width: 540px)");
@@ -55,6 +57,7 @@ const attendanceVisible = ref(false),
   attendanceReason = ref(""),
   attendanceLoading = ref(false);
 const workVisible = ref(false),
+  workView = ref("history"),
   currentWork = ref(null),
   versions = ref([]),
   versionsLoading = ref(false),
@@ -245,6 +248,7 @@ const showRowActions = computed(() =>
   rows.value.some((row) => rowActions(row).length > 0),
 );
 function columnWidth(col) {
+  if (props.resource === "works" && col.key === "title") return 270;
   if (col.width) return col.width;
   if (col.enum || col.bool || col.read) return 96;
   if (col.percent) return 110;
@@ -673,6 +677,7 @@ async function loadVersions() {
 }
 async function showWork(row) {
   currentWork.value = row;
+  workView.value = "history";
   workVisible.value = true;
   await loadVersions();
 }
@@ -852,7 +857,19 @@ onMounted(() => {
           :min-width="columnWidth(col)"
           show-overflow-tooltip
           ><template #default="{ row }"
-            ><div v-if="col.key === '_lesson'" class="table-stack">
+            ><button
+              v-if="resource === 'works' && col.key === 'title'"
+              class="work-title-cell"
+              @click="showWork(row)"
+            >
+              <WorkThumbnail
+                :key="`${row.id}:${row.latestFileId}`"
+                :work-id="row.id"
+                :title="row.title"
+              />
+              <span>{{ row.title }}</span>
+            </button>
+            <div v-else-if="col.key === '_lesson'" class="table-stack">
               <strong>{{ row.title }}</strong>
               <small>{{
                 row.className || valueLabel(row.classId, "classes")
@@ -1067,7 +1084,7 @@ onMounted(() => {
     <el-drawer
       v-model="workVisible"
       :title="currentWork?.title || '作品档案'"
-      size="720px"
+      :size="workView === 'compare' ? '1080px' : '760px'"
       class="work-drawer"
       ><div v-loading="versionsLoading">
         <div class="work-summary">
@@ -1101,88 +1118,119 @@ onMounted(() => {
           v-if="!versions.length && !versionsLoading"
           description="暂时没有作品版本"
         />
-        <article
-          v-for="version in versions"
-          :key="version.id"
-          class="version-item"
+        <el-radio-group
+          v-if="versions.length > 1"
+          v-model="workView"
+          class="work-view-toggle"
+          aria-label="作品查看方式"
         >
-          <div class="version-heading">
-            <h3>第 {{ version.versionNo }} 版</h3>
-            <span>{{ dateText(version.createdAt) }}</span>
-          </div>
-          <div class="version-content">
-            <div v-if="isImageVersion(version)" class="work-preview">
-              <div
-                v-if="versionPreviews[version.id]?.status === 'loading'"
-                class="work-preview-message"
-                role="status"
-              >
-                图片加载中…
-              </div>
-              <div
-                v-else-if="versionPreviews[version.id]?.status === 'error'"
-                class="work-preview-message"
-                role="status"
-              >
-                <span>图片加载失败，请重新加载或打开作品文件。</span>
-                <el-button
-                  size="small"
-                  :icon="Refresh"
-                  @click="loadPreview(version)"
-                  >重新加载</el-button
-                >
-              </div>
-              <img
-                v-if="
-                  versionPreviews[version.id]?.url &&
-                  versionPreviews[version.id]?.status !== 'error'
-                "
-                v-show="versionPreviews[version.id]?.status === 'ready'"
-                :key="versionPreviews[version.id].attempt"
-                :src="versionPreviews[version.id].url"
-                :data-attempt="versionPreviews[version.id].attempt"
-                :alt="`第 ${version.versionNo} 版作品`"
-                class="work-image"
-                @load="finishPreview(version.id, $event, 'ready')"
-                @error="finishPreview(version.id, $event, 'error')"
-              />
-            </div>
-            <el-button :icon="Document" @click="openFile(version.fileId)"
-              >打开作品文件</el-button
-            >
-            <p class="pre-wrap">
-              {{ version.description || "未填写作品说明" }}
-            </p>
-          </div>
-          <div class="review-heading">
-            <h4>教师点评</h4>
-            <el-button
-              v-if="isStaff && writable"
-              link
-              type="primary"
-              @click="addReview(version)"
-              >添加点评</el-button
-            >
-          </div>
-          <div v-if="!version.reviews?.length" class="muted review-empty">
-            教师暂未点评
-          </div>
-          <div
-            v-for="review in version.reviews || []"
-            :key="review.id"
-            class="review-item"
+          <el-radio-button value="history">版本记录</el-radio-button>
+          <el-radio-button value="compare">修改前后对比</el-radio-button>
+        </el-radio-group>
+        <VersionCompare
+          v-if="workView === 'compare' && versions.length > 1"
+          :versions="versions"
+          :previews="versionPreviews"
+          @retry="loadPreview"
+          @loaded="(id, event) => finishPreview(id, event, 'ready')"
+          @failed="(id, event) => finishPreview(id, event, 'error')"
+          @open="openFile"
+        />
+        <template v-else>
+          <article
+            v-for="version in versions"
+            :key="version.id"
+            class="version-item"
           >
-            <div>
-              <strong>{{
-                review.teacherName || review.reviewerName || "任课教师"
-              }}</strong
-              ><span v-if="review.score != null" class="review-score"
-                >{{ review.score }} 分</span
-              ><small>{{ dateText(review.createdAt) }}</small>
+            <div class="version-heading">
+              <h3>
+                第 {{ version.versionNo }} 版
+                <el-tag
+                  v-if="
+                    version.versionNo ===
+                    Math.max(...versions.map((v) => v.versionNo))
+                  "
+                  size="small"
+                  type="success"
+                  >最新版本</el-tag
+                >
+              </h3>
+              <span>{{ dateText(version.createdAt) }}</span>
             </div>
-            <p class="pre-wrap">{{ review.content }}</p>
-          </div>
-        </article>
+            <div class="version-content">
+              <div v-if="isImageVersion(version)" class="work-preview">
+                <div
+                  v-if="versionPreviews[version.id]?.status === 'loading'"
+                  class="work-preview-message"
+                  role="status"
+                >
+                  图片加载中…
+                </div>
+                <div
+                  v-else-if="versionPreviews[version.id]?.status === 'error'"
+                  class="work-preview-message"
+                  role="status"
+                >
+                  <span>图片加载失败，请重新加载或打开作品文件。</span>
+                  <el-button
+                    size="small"
+                    :icon="Refresh"
+                    @click="loadPreview(version)"
+                    >重新加载</el-button
+                  >
+                </div>
+                <img
+                  v-if="
+                    versionPreviews[version.id]?.url &&
+                    versionPreviews[version.id]?.status !== 'error'
+                  "
+                  v-show="versionPreviews[version.id]?.status === 'ready'"
+                  :key="versionPreviews[version.id].attempt"
+                  :src="versionPreviews[version.id].url"
+                  :data-attempt="versionPreviews[version.id].attempt"
+                  :alt="`第 ${version.versionNo} 版作品`"
+                  class="work-image"
+                  @load="finishPreview(version.id, $event, 'ready')"
+                  @error="finishPreview(version.id, $event, 'error')"
+                />
+              </div>
+              <el-button :icon="Document" @click="openFile(version.fileId)"
+                >打开作品文件</el-button
+              >
+              <p class="pre-wrap">
+                {{ version.description || "未填写作品说明" }}
+              </p>
+            </div>
+            <div class="review-heading">
+              <h4>教师点评</h4>
+              <el-button
+                v-if="isStaff && writable"
+                link
+                type="primary"
+                @click="addReview(version)"
+                >添加点评</el-button
+              >
+            </div>
+            <div v-if="!version.reviews?.length" class="muted review-empty">
+              教师暂未点评
+            </div>
+            <div
+              v-for="review in version.reviews || []"
+              :key="review.id"
+              class="review-item"
+            >
+              <div>
+                <strong>{{
+                  review.teacherName || review.reviewerName || "任课教师"
+                }}</strong
+                ><span v-if="review.score != null" class="review-score"
+                  >{{ review.score }} 分</span
+                ><small>{{ dateText(review.createdAt) }}</small>
+              </div>
+              <p class="pre-wrap">{{ review.content }}</p>
+            </div>
+          </article>
+        </template>
       </div></el-drawer
     >
 

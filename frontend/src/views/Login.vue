@@ -35,6 +35,7 @@ async function login() {
     </header>
     <main class="login-main">
       <section class="login-intro">
+        <span class="login-kicker">画室教学 · 日常管理</span>
         <h1>教学有安排，<br />成长有记录。</h1>
         <p>从学员入班到作品点评，<br />有序管理画室的每一天。</p>
         <div class="login-features">
