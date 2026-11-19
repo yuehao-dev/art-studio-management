@@ -318,14 +318,16 @@ class Seeder:
                                    description=['先完成大形和主要色块，细节还在练习。', '尝试按照课堂的方法调整空间关系。', '这次重点练习了构图，局部不太确定。', '保留了起稿步骤，请老师看看比例。'][j], created_at=submitted)
                     if not (k==1 and j==3):
                         self.add('reviews', version_id=vid, teacher_id=cls['teacher_id'], content=reviews[cat][0],
-                                 score=76+(i*3+j*4+k)%17, created_by=self.admin, created_at=submitted+timedelta(hours=6))
+                                 score=76+(i*3+j*4+k)%17, created_by=self.admin,
+                                 created_at=datetime.combine(submitted.date()+timedelta(days=1), time(10, 15+j*7)))
                     if k==0 and j==0:
                         updated = submitted+timedelta(days=2)
                         fid = self.file(f'practice-{seed:03d}', cat, seed, 2, updated)
                         vid = self.add('work_versions', work_id=wid, file_id=fid, version_no=2,
                                        description='根据点评调整了局部关系，保留原构图，对重点部分做了修改。', created_at=updated)
                         self.add('reviews', version_id=vid, teacher_id=cls['teacher_id'], content=reviews[cat][1],
-                                 score=87+i%6, created_by=self.admin, created_at=updated+timedelta(hours=5))
+                                 score=87+i%6, created_by=self.admin,
+                                 created_at=datetime.combine(updated.date()+timedelta(days=1), time(14, 30)))
             fid = self.file(f'reference-{i+1:02d}', cat, 100+i, 2, self.stamp(-12), purpose='resources')
             self.add('resources', title={'sketch':'静物观察与明暗参考', 'advanced':'结构与空间练习参考', 'water':'植物色彩观察参考', 'creative':'花园构图练习参考', 'ink':'竹叶与疏密练习参考', 'oil':'风景冷暖层次参考'}[cat],
                      class_id=cls['id'], file_id=fid, description='课堂练习示意图，仅供观察步骤与构图参考，不要求照抄。（虚构演示资料）',
