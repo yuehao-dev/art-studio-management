@@ -15,6 +15,7 @@ import {
   Refresh,
   Document,
   ArrowRight,
+  ArrowDown,
 } from "@element-plus/icons-vue";
 import { api, fileUrl } from "../api";
 import { auth } from "../auth";
@@ -22,6 +23,11 @@ import { pages, translate, dateText, optionLabel, f, select } from "../pages";
 import Fields from "../components/Fields.vue";
 
 const props = defineProps({ resource: String });
+const compactViewport = window.matchMedia("(max-width: 540px)");
+const narrowScreen = ref(compactViewport.matches);
+function syncViewport(event) {
+  narrowScreen.value = event.matches;
+}
 const config = computed(() => pages[props.resource]),
   rows = ref([]),
   loading = ref(false),
@@ -106,6 +112,16 @@ const paged = computed(() =>
 const statuses = computed(() => [
   ...new Set(rows.value.map((r) => r.status).filter(Boolean)),
 ]);
+const tableColumns = computed(() =>
+  props.resource === "lessons"
+    ? [
+        { key: "_lesson", label: "课程安排", width: 240 },
+        { key: "_time", label: "上课时间", width: 190 },
+        { key: "_teacherRoom", label: "教师 / 教室", width: 145 },
+        { key: "status", label: "状态", enum: true },
+      ]
+    : config.value.columns,
+);
 const formRules = computed(() => {
   const rules = {};
   for (const field of dialogFields.value) {
@@ -127,15 +143,23 @@ const formRules = computed(() => {
 const formOptions = computed(() => {
   const result = { ...options };
   if (props.resource === "works")
-    result.tasks = (options.tasks || []).filter((x) => x.submissionAllowed !== false);
+    result.tasks = (options.tasks || []).filter(
+      (x) => x.submissionAllowed !== false,
+    );
   if (props.resource === "leaves")
-    result.lessons = (options.lessons || []).filter((x) =>
-      x.status === "SCHEDULED" && new Date(x.startTime).getTime() > Date.now());
+    result.lessons = (options.lessons || []).filter(
+      (x) =>
+        x.status === "SCHEDULED" &&
+        new Date(x.startTime).getTime() > Date.now(),
+    );
   if (props.resource === "tasks")
-    result.lessons = (options.lessons || []).filter((x) =>
-      x.status !== "CANCELLED" && x.classId === form.classId);
+    result.lessons = (options.lessons || []).filter(
+      (x) => x.status !== "CANCELLED" && x.classId === form.classId,
+    );
   if (["enrollments", "tasks", "lessons"].includes(props.resource))
-    result.classes = (options.classes || []).filter((x) => x.status === "ACTIVE");
+    result.classes = (options.classes || []).filter(
+      (x) => x.status === "ACTIVE",
+    );
   return result;
 });
 function valueLabel(id, source) {
@@ -171,6 +195,65 @@ function tone(value) {
     : ["PENDING", "OPEN", "LEAVE"].includes(value)
       ? "pending-state"
       : "state-text";
+}
+function rowActions(row) {
+  const items = [];
+  const add = (key, label, run, danger = false) =>
+    items.push({ key, label, run, danger });
+  const resource = props.resource;
+  if (resource === "lessons")
+    add("attendance", isStaff.value ? "名单 / 考勤" : "出勤记录", () =>
+      openAttendance(row),
+    );
+  if (resource === "works") add("work", "版本与点评", () => showWork(row));
+  if (resource === "resources")
+    add("file", "查看文件", () => openFile(row.fileId));
+  if (resource === "notices") add("notice", "查看通知", () => showNotice(row));
+  if (resource === "feedback" && isAdmin.value)
+    add("reply", "回复", () => replyFeedback(row));
+  if (
+    can(config.value.editRoles) &&
+    (resource !== "lessons" || row.status === "SCHEDULED")
+  )
+    add("edit", resource === "lessons" ? "调整" : "编辑", () => openEdit(row));
+  if (resource === "classes" && isAdmin.value && row.status !== "CLOSED")
+    add("close", "结班", () => closeClass(row));
+  if (resource === "enrollments" && isAdmin.value && row.status === "ACTIVE")
+    add("transfer", "转班", () => transfer(row));
+  if (
+    resource === "leaves" &&
+    isStaff.value &&
+    writable.value &&
+    row.status === "PENDING"
+  ) {
+    add("approve", "通过", () => reviewLeave(row, true));
+    add("reject", "驳回", () => reviewLeave(row, false), true);
+  }
+  if (resource === "lessons" && isAdmin.value && row.status === "SCHEDULED")
+    add("cancel", "停课", () => cancelLesson(row), true);
+  if (
+    resource === "makeups" &&
+    isAdmin.value &&
+    !["COMPLETED", "CANCELLED"].includes(row.status)
+  )
+    add("cancel", "取消安排", () => cancelMakeup(row), true);
+  if (can(config.value.deleteRoles))
+    add("delete", "删除", () => remove(row), true);
+  return items;
+}
+const showRowActions = computed(() =>
+  rows.value.some((row) => rowActions(row).length > 0),
+);
+function columnWidth(col) {
+  if (col.width) return col.width;
+  if (col.enum || col.bool || col.read) return 96;
+  if (col.percent) return 110;
+  if (col.date) return 165;
+  if (["description", "content", "detail"].includes(col.key)) return 240;
+  if (["phone", "guardianPhone"].includes(col.key)) return 150;
+  if (col.key === "birthday") return 128;
+  if (["title", "name"].includes(col.key)) return 170;
+  return 130;
 }
 async function load() {
   const request = ++listRequest;
@@ -304,12 +387,14 @@ async function changed(field) {
           `/lessons/${form._originalLessonId}/participants`,
         );
         if (request === participantsRequest) participants.value = result;
-      } catch {} finally {
+      } catch {
+      } finally {
         if (request === participantsRequest) participantsLoading.value = false;
       }
     }
   }
-  if (field.key === "classId" && props.resource === "tasks") form.lessonId = null;
+  if (field.key === "classId" && props.resource === "tasks")
+    form.lessonId = null;
   if (
     field.key === "classId" &&
     props.resource === "lessons" &&
@@ -474,7 +559,12 @@ const attendanceWritable = computed(
     new Date(attendanceLesson.value?.startTime).getTime() <= Date.now(),
 );
 async function saveAttendance() {
-  if (!attendanceRows.value.length || attendanceLoading.value || !attendanceWritable.value) return;
+  if (
+    !attendanceRows.value.length ||
+    attendanceLoading.value ||
+    !attendanceWritable.value
+  )
+    return;
   const existing = attendanceRows.value.some(
     (x) =>
       x.attendanceStatus &&
@@ -572,7 +662,9 @@ async function loadVersions() {
     if (!workVisible.value || request !== workRequest) return;
     versions.value = result;
     await Promise.allSettled(
-      result.filter(isImageVersion).map((version) => loadPreview(version, request)),
+      result
+        .filter(isImageVersion)
+        .map((version) => loadPreview(version, request)),
     );
   } catch {
   } finally {
@@ -633,12 +725,16 @@ watch(
   { flush: "sync" },
 );
 onBeforeUnmount(() => {
+  compactViewport.removeEventListener("change", syncViewport);
   ++workRequest;
   ++listRequest;
   ++participantsRequest;
   ++attendanceRequest;
 });
-onMounted(refresh);
+onMounted(() => {
+  compactViewport.addEventListener("change", syncViewport);
+  refresh();
+});
 </script>
 
 <template>
@@ -646,6 +742,7 @@ onMounted(refresh);
     <div class="page-heading">
       <div>
         <h1>{{ config.title }}</h1>
+        <p>{{ config.description }}</p>
       </div>
       <el-button
         v-if="can(config.createRoles)"
@@ -705,6 +802,7 @@ onMounted(refresh);
                 : '输入关键词筛选'
             "
             class="search-input"
+            :aria-label="'搜索' + config.title"
           /><el-select
             v-if="statuses.length"
             v-model="statusFilter"
@@ -719,6 +817,15 @@ onMounted(refresh);
           /></el-select>
         </div>
         <div class="toolbar-right">
+          <el-button
+            v-if="search || statusFilter"
+            link
+            @click="
+              search = '';
+              statusFilter = '';
+            "
+            >重置筛选</el-button
+          >
           <span class="record-count">共 {{ filtered.length }} 条</span
           ><el-button :icon="Refresh" aria-label="刷新列表" @click="refresh" />
         </div>
@@ -735,144 +842,98 @@ onMounted(refresh);
         v-loading="loading"
         :data="paged"
         row-key="id"
-        :empty-text="search ? '没有匹配的记录' : '暂无记录'"
+        :empty-text="search || statusFilter ? '没有匹配的记录' : '暂无记录'"
         class="resource-table"
       >
         <el-table-column
-          v-for="col in config.columns"
+          v-for="col in tableColumns"
           :key="col.key"
           :label="col.label"
-          :min-width="
-            col.date
-              ? 155
-              : col.key === 'description' ||
-                  col.key === 'content' ||
-                  col.key === 'detail'
-                ? 220
-                : col.key === 'title' || col.key === 'name'
-                  ? 160
-                  : 110
-          "
+          :min-width="columnWidth(col)"
           show-overflow-tooltip
           ><template #default="{ row }"
-            ><span :class="col.enum ? tone(row[col.key]) : ''">{{
-              format(row, col)
-            }}</span></template
-          ></el-table-column
-        >
+            ><div v-if="col.key === '_lesson'" class="table-stack">
+              <strong>{{ row.title }}</strong>
+              <small>{{
+                row.className || valueLabel(row.classId, "classes")
+              }}</small>
+            </div>
+            <div v-else-if="col.key === '_time'" class="table-stack">
+              <span>{{ dateText(row.startTime).slice(0, 10) }}</span>
+              <small
+                >{{ dateText(row.startTime).slice(11) }} —
+                {{
+                  row.endTime?.slice(0, 10) === row.startTime?.slice(0, 10)
+                    ? dateText(row.endTime).slice(11)
+                    : dateText(row.endTime)
+                }}</small
+              >
+            </div>
+            <div v-else-if="col.key === '_teacherRoom'" class="table-stack">
+              <span>{{
+                row.teacherName || valueLabel(row.teacherId, "teachers")
+              }}</span>
+              <small>{{
+                row.roomName || valueLabel(row.roomId, "rooms")
+              }}</small>
+            </div>
+            <el-tag
+              v-else-if="
+                (col.enum && col.key !== 'gender') || col.bool || col.read
+              "
+              class="status-tag"
+              :class="col.key === 'status' ? tone(row[col.key]) : ''"
+              effect="light"
+              disable-transitions
+              >{{ format(row, col) }}</el-tag
+            ><span v-else>{{ format(row, col) }}</span></template
+          >
+        </el-table-column>
         <el-table-column
-          v-if="!['progress', 'audit-logs'].includes(resource)"
+          v-if="showRowActions"
           label="操作"
-          :min-width="
-            resource === 'lessons' ? 230 : resource === 'leaves' ? 170 : 155
-          "
-          fixed="right"
-          ><template #default="{ row }"
-            ><div class="row-actions">
+          :width="resource === 'lessons' ? 185 : 170"
+          :fixed="narrowScreen ? false : 'right'"
+          ><template #default="{ row }">
+            <div v-if="rowActions(row).length" class="row-actions">
               <el-button
-                v-if="
-                  can(config.editRoles) &&
-                  (resource !== 'lessons' || row.status === 'SCHEDULED')
+                link
+                :type="rowActions(row)[0].danger ? 'danger' : 'primary'"
+                @click="rowActions(row)[0].run()"
+                >{{ rowActions(row)[0].label }}</el-button
+              >
+              <el-dropdown
+                v-if="rowActions(row).length > 1"
+                trigger="click"
+                @command="
+                  (key) =>
+                    rowActions(row)
+                      .find((item) => item.key === key)
+                      ?.run()
                 "
-                link
-                type="primary"
-                @click="openEdit(row)"
-                >{{ resource === "lessons" ? "调整" : "编辑" }}</el-button
               >
-              <el-button
-                v-if="can(config.deleteRoles)"
-                link
-                type="danger"
-                @click="remove(row)"
-                >删除</el-button
-              >
-              <el-button
-                v-if="
-                  resource === 'classes' && isAdmin && row.status !== 'CLOSED'
-                "
-                link
-                type="primary"
-                @click="closeClass(row)"
-                >结班</el-button
-              >
-              <el-button
-                v-if="
-                  resource === 'enrollments' &&
-                  isAdmin &&
-                  row.status === 'ACTIVE'
-                "
-                link
-                type="primary"
-                @click="transfer(row)"
-                >转班</el-button
-              >
-              <template v-if="resource === 'lessons'"
-                ><el-button link type="primary" @click="openAttendance(row)">{{
-                  isStaff ? "名单 / 考勤" : "出勤记录"
-                }}</el-button
-                ><el-button
-                  v-if="isAdmin && row.status === 'SCHEDULED'"
+                <el-button
                   link
-                  type="danger"
-                  @click="cancelLesson(row)"
-                  >停课</el-button
-                ></template
-              >
-              <template
-                v-if="
-                  resource === 'leaves' &&
-                  isStaff &&
-                  writable &&
-                  row.status === 'PENDING'
-                "
-                ><el-button link type="primary" @click="reviewLeave(row, true)"
-                  >通过</el-button
-                ><el-button link type="danger" @click="reviewLeave(row, false)"
-                  >驳回</el-button
-                ></template
-              >
-              <el-button
-                v-if="
-                  resource === 'makeups' &&
-                  isAdmin &&
-                  !['COMPLETED', 'CANCELLED'].includes(row.status)
-                "
-                link
-                type="danger"
-                @click="cancelMakeup(row)"
-                >取消安排</el-button
-              >
-              <el-button
-                v-if="resource === 'works'"
-                link
-                type="primary"
-                @click="showWork(row)"
-                >版本与点评</el-button
-              >
-              <el-button
-                v-if="resource === 'resources'"
-                link
-                type="primary"
-                @click="openFile(row.fileId)"
-                >查看文件</el-button
-              >
-              <el-button
-                v-if="resource === 'notices'"
-                link
-                type="primary"
-                @click="showNotice(row)"
-                >查看通知</el-button
-              >
-              <el-button
-                v-if="resource === 'feedback' && isAdmin"
-                link
-                type="primary"
-                @click="replyFeedback(row)"
-                >回复</el-button
-              >
-            </div></template
-          ></el-table-column
-        >
+                  class="more-actions"
+                  :aria-label="'更多操作：' + (row.name || row.title || row.id)"
+                  >更多<el-icon><ArrowDown /></el-icon
+                ></el-button>
+                <template #dropdown
+                  ><el-dropdown-menu
+                    ><el-dropdown-item
+                      v-for="item in rowActions(row).slice(1)"
+                      :key="item.key"
+                      :command="item.key"
+                      :class="{ 'danger-action': item.danger }"
+                      >{{ item.label }}</el-dropdown-item
+                    ></el-dropdown-menu
+                  ></template
+                >
+              </el-dropdown>
+            </div>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
       </el-table>
       <div class="table-footer">
         <span
@@ -894,7 +955,7 @@ onMounted(refresh);
     <el-dialog
       v-model="dialog"
       :title="dialogTitle"
-      width="580px"
+      :width="dialogFields.length > 4 ? '760px' : '540px'"
       :close-on-click-modal="false"
       :close-on-press-escape="!uploading && !saving"
       :show-close="!uploading && !saving"
@@ -906,8 +967,8 @@ onMounted(refresh);
         :model="form"
         :rules="formRules"
         class="entry-form"
-        label-position="right"
-        label-width="106px"
+        :class="{ 'entry-form-grid': dialogFields.length > 4 }"
+        label-position="top"
         @submit.prevent="submit"
         ><Fields
           :fields="dialogFields"
@@ -918,7 +979,8 @@ onMounted(refresh);
           @change="changed"
           @uploading="(v) => (uploading = v)" /></el-form
       ><template #footer
-        ><el-button :disabled="saving || uploading" @click="dialog = false">取消</el-button
+        ><el-button :disabled="saving || uploading" @click="dialog = false"
+          >取消</el-button
         ><el-button
           type="primary"
           :loading="saving"
@@ -1024,7 +1086,11 @@ onMounted(refresh);
             <p>共 {{ versions.length }} 个作品版本</p>
           </div>
           <el-button
-            v-if="auth.user?.role === 'STUDENT' && writable && currentWork?.submissionAllowed !== false"
+            v-if="
+              auth.user?.role === 'STUDENT' &&
+              writable &&
+              currentWork?.submissionAllowed !== false
+            "
             type="primary"
             :icon="Plus"
             @click="addVersion"
@@ -1050,18 +1116,27 @@ onMounted(refresh);
                 v-if="versionPreviews[version.id]?.status === 'loading'"
                 class="work-preview-message"
                 role="status"
-              >图片加载中…</div>
+              >
+                图片加载中…
+              </div>
               <div
                 v-else-if="versionPreviews[version.id]?.status === 'error'"
                 class="work-preview-message"
                 role="status"
               >
                 <span>图片加载失败，请重新加载或打开作品文件。</span>
-                <el-button size="small" :icon="Refresh" @click="loadPreview(version)"
-                  >重新加载</el-button>
+                <el-button
+                  size="small"
+                  :icon="Refresh"
+                  @click="loadPreview(version)"
+                  >重新加载</el-button
+                >
               </div>
               <img
-                v-if="versionPreviews[version.id]?.url && versionPreviews[version.id]?.status !== 'error'"
+                v-if="
+                  versionPreviews[version.id]?.url &&
+                  versionPreviews[version.id]?.status !== 'error'
+                "
                 v-show="versionPreviews[version.id]?.status === 'ready'"
                 :key="versionPreviews[version.id].attempt"
                 :src="versionPreviews[version.id].url"

@@ -1,0 +1,22 @@
+# Local dependencies and build output
+**/node_modules/
+**/dist/
+**/target/
+work/
+**/uploads/
+*.log
+
+# Local configuration and credentials
+.env*
+!.env.example
+*.pem
+*.key
+*.p12
+server-ssh-password.txt
+workserver-ssh-password.txt
+
+# Editor and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

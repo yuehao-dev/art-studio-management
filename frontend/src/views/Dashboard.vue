@@ -1,7 +1,18 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
-import { Refresh, ArrowRight } from "@element-plus/icons-vue";
+import {
+  Refresh,
+  ArrowRight,
+  User,
+  Calendar,
+  Collection,
+  TrendCharts,
+  Tickets,
+  DocumentChecked,
+  EditPen,
+  Setting,
+} from "@element-plus/icons-vue";
 import { api } from "../api";
 import { auth, roleLabel } from "../auth";
 import { dateText } from "../pages";
@@ -73,6 +84,21 @@ const pendingTasks = computed(() =>
 const pendingFeedback = computed(
   () => feedback.value.filter((f) => f.status === "OPEN").length,
 );
+const shortcutIcon = (path) =>
+  ({
+    "/students": User,
+    "/enrollments": Tickets,
+    "/lessons": Calendar,
+    "/makeups": Calendar,
+    "/works": EditPen,
+    "/users": Setting,
+    "/tasks": DocumentChecked,
+    "/resources": Collection,
+    "/progress": TrendCharts,
+    "/notices": Tickets,
+    "/leaves": Calendar,
+    "/settings": Setting,
+  })[path] || Collection;
 const upcoming = computed(() =>
   (data.value?.upcomingLessons || []).slice(0, 6),
 );
@@ -321,7 +347,7 @@ onBeforeUnmount(() => {
       <div class="home-date">
         <time>{{ todayLabel }}</time
         ><el-button :icon="Refresh" :disabled="loading" @click="load"
-          >刷新</el-button
+          >刷新数据</el-button
         >
       </div>
     </div>
@@ -349,23 +375,17 @@ onBeforeUnmount(() => {
           ><small v-if="data && item.unit">{{ item.unit }}</small>
         </div>
         <p>{{ item.note }}</p>
+        <el-icon class="stat-icon"
+          ><component
+            :is="
+              [User, Calendar, Collection, TrendCharts][statItems.indexOf(item)]
+            "
+        /></el-icon>
       </button>
     </div>
-    <section class="panel shortcut-panel" aria-label="常用入口">
-      <h2>常用入口</h2>
-      <div>
-        <button
-          v-for="[title, path] in shortcuts"
-          :key="path"
-          @click="visit(path)"
-        >
-          {{ title }}<el-icon><ArrowRight /></el-icon>
-        </button>
-      </div>
-    </section>
     <div class="home-columns">
-      <div class="home-column">
-        <section class="panel">
+      <div class="home-column main-column">
+        <section class="panel schedule-panel">
           <div class="panel-heading">
             <h2>
               近期课程<span class="heading-note"
@@ -413,6 +433,30 @@ onBeforeUnmount(() => {
               ></el-table-column
             >
           </el-table>
+          <div class="mobile-lesson-list">
+            <div v-if="!upcoming.length" class="home-empty">暂无待上课程</div>
+            <button
+              v-for="lesson in upcoming"
+              :key="lesson.id"
+              @click="visit('/lessons')"
+            >
+              <span class="mobile-lesson-date"
+                >{{ lesson.startTime?.slice(5, 10)
+                }}<small
+                  >{{ lesson.startTime?.slice(11, 16) }}–{{
+                    lesson.endTime?.slice(11, 16)
+                  }}</small
+                ></span
+              >
+              <span class="mobile-lesson-info"
+                ><strong>{{ lesson.title }}</strong
+                ><small>{{ lesson.className }}</small
+                ><small
+                  >{{ lesson.teacherName }} · {{ lesson.roomName }}</small
+                ></span
+              >
+            </button>
+          </div>
         </section>
         <section class="panel">
           <div class="panel-heading">
@@ -497,7 +541,7 @@ onBeforeUnmount(() => {
           </div>
         </section>
       </div>
-      <div class="home-column">
+      <div class="home-column side-column">
         <section class="panel">
           <div class="panel-heading">
             <h2>{{ guardian ? "学员事项" : "待办事项" }}</h2>
@@ -581,6 +625,19 @@ onBeforeUnmount(() => {
         </section>
       </div>
     </div>
+    <section class="panel shortcut-panel" aria-label="常用入口">
+      <h2>常用入口</h2>
+      <div>
+        <button
+          v-for="[title, path] in shortcuts"
+          :key="path"
+          @click="visit(path)"
+        >
+          <el-icon><component :is="shortcutIcon(path)" /></el-icon
+          ><span>{{ title }}</span>
+        </button>
+      </div>
+    </section>
     <el-dialog
       v-model="noticeVisible"
       :title="currentNotice?.title || '通知详情'"
@@ -600,60 +657,60 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.mobile-lesson-list {
+  display: none;
+}
 .home-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: 24px;
+  margin-bottom: 26px;
 }
 .home-heading h1 {
-  margin: 0 0 5px;
+  margin: 0 0 6px;
 }
 .home-heading p {
   margin: 0;
   font-size: 13px;
-  color: #747a82;
+  color: #7c8796;
   line-height: 1.8;
 }
 .home-heading p span {
   margin-left: 12px;
-  color: #949aa2;
   font-size: 12px;
+  color: #929dab;
 }
 .home-date {
   display: flex;
   align-items: center;
-  gap: 16px;
-  color: #747a82;
+  gap: 18px;
+  color: #7c8796;
   white-space: nowrap;
   font-size: 12px;
 }
 .home-error {
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
 .overview-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: 1px solid #dce0e6;
-  background: #fff;
-  margin-bottom: 14px;
+  gap: 18px;
+  margin-bottom: 24px;
 }
 .stat-cell {
+  position: relative;
   display: block;
   min-width: 0;
-  padding: 16px 20px 14px;
+  padding: 22px 24px;
   text-align: left;
-  background: none;
-  border: 0;
-  border-right: 1px solid #e7e9ed;
-  color: #50545b;
-}
-.stat-cell:last-child {
-  border-right: 0;
+  background: #fff;
+  border: 1px solid #e6ebf0;
+  border-radius: 7px;
+  color: #68768a;
 }
 .stat-cell:hover {
-  background: #fafbfc;
+  border-color: #b7c9e1;
 }
 .stat-cell > span {
   font-size: 13px;
@@ -662,171 +719,148 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-top: 7px;
+  margin-top: 12px;
 }
 .stat-cell strong {
-  font-size: 28px;
+  font-size: 30px;
   line-height: 1.3;
   font-weight: 600;
-  color: #3168a8;
+  color: #2c3b51;
   font-variant-numeric: tabular-nums;
 }
 .stat-cell small {
   font-size: 12px;
-  color: #8b929b;
+  color: #8b97a7;
 }
 .stat-cell p {
-  margin: 6px 0 0;
+  margin: 10px 0 0;
   font-size: 11px;
-  line-height: 1.6;
-  color: #8b929b;
+  line-height: 1.7;
+  color: #939dab;
 }
-.shortcut-panel {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-}
-.shortcut-panel h2 {
-  flex: 0 0 auto;
-  font-size: 13px;
-  color: #50545b;
-}
-.shortcut-panel > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.shortcut-panel button {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  padding: 6px 10px;
-  border: 1px solid #dfe3e8;
-  border-radius: 2px;
-  background: #fff;
-  color: #50545b;
-  font-size: 12px;
-}
-.shortcut-panel button:hover {
-  color: #3168a8;
-  border-color: #99b3d2;
-  background: #f8fafc;
-}
-.shortcut-panel .el-icon {
-  color: #969da6;
-  font-size: 11px;
+.stat-icon {
+  position: absolute;
+  right: 22px;
+  top: 22px;
+  font-size: 21px;
+  color: #a2b6ce;
 }
 .home-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1.8fr) minmax(290px, 1fr);
+  gap: 24px;
   align-items: start;
 }
 .home-column {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   min-width: 0;
 }
-.panel-heading h2 {
-  font-size: 14px;
-}
 .heading-note {
-  margin-left: 10px;
+  margin-left: 12px;
   font-weight: 400;
   font-size: 11px;
-  color: #9097a0;
+  color: #929dab;
 }
 .panel-heading > .heading-note {
   margin-left: 0;
 }
 .overview-table :deep(.el-table__cell) {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.overview-table :deep(th.el-table__cell) {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.overview-table :deep(.cell) {
+  padding-left: 20px;
+  padding-right: 14px;
 }
 .table-sub {
   display: block;
   font-size: 11px;
-  color: #8a919a;
-  margin-top: 4px;
+  color: #8995a5;
+  margin-top: 5px;
 }
 .inline-link {
   display: block;
   text-align: left;
-  color: #3b4149;
+  color: #3c4a5e;
   padding: 0;
   background: none;
   border: 0;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 .inline-link:hover,
 .in-session {
-  color: #3168a8;
+  color: #3767aa;
 }
 .todo-list {
-  padding: 0 14px;
+  padding: 0 22px;
 }
 .todo-list button {
   display: flex;
   gap: 12px;
   width: 100%;
   align-items: center;
-  padding: 13px 0;
+  padding: 18px 0;
   background: none;
   border: 0;
-  border-bottom: 1px solid #eceef1;
+  border-bottom: 1px solid #edf0f4;
   text-align: left;
-  color: #50545b;
+  color: #536176;
 }
 .todo-list button:last-child {
   border-bottom: 0;
 }
 .todo-list button > span {
   flex: 1;
+  font-size: 13px;
 }
 .todo-list small {
   display: block;
-  margin-top: 5px;
+  margin-top: 6px;
   font-size: 11px;
-  color: #9298a0;
+  color: #929dab;
+  line-height: 1.7;
 }
 .todo-list strong {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 500;
-  color: #9aa1aa;
+  color: #9ba6b3;
   font-variant-numeric: tabular-nums;
 }
 .todo-list strong.outstanding {
-  color: #3168a8;
+  color: #3767aa;
 }
 .todo-list .el-icon {
-  color: #a0a6ae;
-  font-size: 12px;
+  color: #a6afbb;
+  font-size: 11px;
 }
 .todo-list button:hover > span {
-  color: #3168a8;
+  color: #3767aa;
 }
 .home-empty {
-  padding: 30px 16px;
+  padding: 44px 20px;
   text-align: center;
   font-size: 12px;
-  line-height: 1.8;
-  color: #9299a1;
+  line-height: 1.9;
+  color: #929dab;
 }
 .activity-list {
-  padding: 0 14px;
+  padding: 0 22px;
 }
 .activity-list > button {
   display: flex;
   width: 100%;
-  gap: 12px;
+  gap: 18px;
   justify-content: space-between;
   align-items: center;
-  padding: 13px 0;
+  padding: 19px 0;
   border: 0;
-  border-bottom: 1px solid #eceef1;
+  border-bottom: 1px solid #edf0f4;
   background: none;
   text-align: left;
 }
@@ -838,43 +872,44 @@ onBeforeUnmount(() => {
 }
 .activity-main strong {
   display: block;
+  font-size: 13px;
   font-weight: 400;
-  color: #414750;
+  color: #45536a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .activity-main small {
   display: block;
-  color: #8b929b;
+  color: #8995a5;
   font-size: 11px;
-  margin-top: 5px;
-  line-height: 1.6;
+  margin-top: 7px;
+  line-height: 1.7;
 }
 .activity-meta {
   flex: 0 0 auto;
   text-align: right;
   font-size: 11px;
-  color: #6a7480;
+  color: #718098;
 }
 .activity-meta time {
   display: block;
-  color: #989fa7;
-  margin-top: 5px;
+  color: #9aa4b2;
+  margin-top: 7px;
 }
 .activity-list button:hover strong {
-  color: #3168a8;
+  color: #3767aa;
 }
 .bulletin-list {
-  padding: 0 14px;
+  padding: 0 22px;
 }
 .bulletin-list button {
   display: block;
   width: 100%;
-  padding: 14px 0;
+  padding: 18px 0;
   background: none;
   border: 0;
-  border-bottom: 1px solid #eceef1;
+  border-bottom: 1px solid #edf0f4;
   text-align: left;
 }
 .bulletin-list button:last-child {
@@ -883,142 +918,242 @@ onBeforeUnmount(() => {
 .bulletin-list button > div {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 .bulletin-list strong {
   font-size: 13px;
   font-weight: 400;
-  color: #414750;
-  line-height: 1.6;
+  color: #45536a;
+  line-height: 1.8;
 }
 .bulletin-list button:hover strong {
-  color: #3168a8;
+  color: #3767aa;
 }
 .bulletin-list p {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   font-size: 11px;
-  color: #939aa3;
-  line-height: 1.6;
+  color: #939dab;
+  line-height: 1.7;
 }
 .unread-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #3168a8;
+  background: #3767aa;
   flex: 0 0 auto;
 }
 .learning-body {
-  padding: 16px;
+  padding: 24px 22px;
 }
 .learning-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  font-size: 12px;
+  color: #7b8798;
+  margin-bottom: 22px;
+}
+.learning-counts span {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 24px;
-  font-size: 12px;
-  color: #737c86;
-  margin-bottom: 14px;
+  align-items: baseline;
+  column-gap: 6px;
 }
 .learning-counts strong {
-  color: #39424d;
-  font-size: 14px;
+  color: #45536a;
+  font-size: 20px;
   font-weight: 500;
-  margin: 0 3px;
 }
 .learning-body p {
-  margin: 9px 0 0;
-  color: #949ba4;
+  margin: 13px 0 0;
+  color: #939dab;
   font-size: 11px;
-  line-height: 1.7;
+  line-height: 1.9;
+}
+.shortcut-panel {
+  margin-top: 24px;
+  padding: 22px;
+}
+.shortcut-panel h2 {
+  margin-bottom: 20px;
+}
+.shortcut-panel > div {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.shortcut-panel button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 10px;
+  border: 1px solid #edf0f4;
+  border-radius: 5px;
+  background: #fafbfc;
+  color: #5b6b81;
+  font-size: 13px;
+}
+.shortcut-panel button:hover {
+  color: #3767aa;
+  border-color: #bacbe0;
+  background: #f7faff;
+}
+.shortcut-panel .el-icon {
+  color: #7992b1;
+  font-size: 18px;
 }
 .notice-meta {
-  color: #8a929c;
+  color: #8995a5;
   font-size: 12px;
-  line-height: 1.8;
+  line-height: 1.9;
 }
 .notice-body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.9;
-  padding: 4px 0 14px;
+  line-height: 2;
+  padding: 10px 0 20px;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1250px) {
   .home-columns {
-    grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr);
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+    gap: 18px;
+  }
+  .home-column {
+    gap: 18px;
+  }
+  .overview-stats {
+    gap: 14px;
   }
   .stat-cell {
-    padding: 14px;
+    padding: 20px 18px;
   }
-  .home-heading p span,
+  .stat-icon {
+    right: 16px;
+    font-size: 18px;
+  }
+  .stat-cell p {
+    min-height: 36px;
+  }
   .home-date time,
   .heading-note {
     display: none;
   }
+  .learning-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .shortcut-panel > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
-@media (max-width: 800px) {
+@media (max-width: 1050px) {
   .home-columns {
     grid-template-columns: 1fr;
   }
-  .home-column:last-child {
+  .side-column {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
+}
+@media (max-width: 800px) {
   .home-heading {
-    gap: 10px;
+    gap: 14px;
     align-items: flex-start;
+    margin-bottom: 20px;
+  }
+  .overview-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .stat-cell p {
+    min-height: auto;
+  }
+  .shortcut-panel {
+    margin-top: 20px;
+  }
+}
+@media (max-width: 540px) {
+  .overview-table {
+    display: none;
+  }
+  .mobile-lesson-list {
+    display: block;
+    padding: 0 18px;
+  }
+  .mobile-lesson-list button {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    text-align: left;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #edf0f4;
+    padding: 20px 0;
+    background: none;
+    color: #536176;
+  }
+  .mobile-lesson-list button:last-child {
+    border-bottom: 0;
+  }
+  .mobile-lesson-date {
+    flex: 0 0 86px;
+    font-size: 17px;
+    color: #526c8e;
+  }
+  .mobile-lesson-list small {
+    display: block;
+    font-size: 11px;
+    color: #8a96a6;
+    margin-top: 7px;
+    line-height: 1.6;
+  }
+  .mobile-lesson-info {
+    min-width: 0;
+  }
+  .mobile-lesson-info strong {
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+  }
+  .home-heading h1 {
+    font-size: 22px;
   }
   .home-heading p {
     font-size: 12px;
   }
-  .overview-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .stat-cell:nth-child(2) {
-    border-right: 0;
-  }
-  .stat-cell:nth-child(-n + 2) {
-    border-bottom: 1px solid #e7e9ed;
-  }
-  .shortcut-panel {
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .shortcut-panel h2 {
-    padding-top: 5px;
-  }
-}
-@media (max-width: 540px) {
-  .home-heading h1 {
-    font-size: 18px;
+  .home-heading p span {
+    display: none;
   }
   .stat-cell {
-    padding: 12px;
+    padding: 18px 15px;
   }
   .stat-cell strong {
-    font-size: 24px;
+    font-size: 27px;
   }
   .stat-cell p {
-    font-size: 10px;
+    min-height: 38px;
+  }
+  .stat-icon {
+    display: none;
+  }
+  .side-column {
+    display: flex;
   }
   .shortcut-panel {
-    display: block;
-    padding: 12px;
-  }
-  .shortcut-panel h2 {
-    padding: 0;
-    margin-bottom: 10px;
+    padding: 18px;
   }
   .shortcut-panel > div {
-    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .shortcut-panel button {
-    justify-content: space-between;
-  }
-  .home-column:last-child {
-    display: flex;
+    font-size: 12px;
+    gap: 8px;
   }
   .activity-meta time {
     display: none;
@@ -1026,10 +1161,10 @@ onBeforeUnmount(() => {
   .activity-main small {
     overflow-wrap: anywhere;
   }
-  .learning-counts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+  .activity-list,
+  .todo-list,
+  .bulletin-list {
+    padding: 0 18px;
   }
 }
 </style>

@@ -15,7 +15,9 @@ const emit = defineEmits(["change", "uploading"]);
 const uploading = ref(false),
   fileName = ref("");
 let mounted = true;
-onBeforeUnmount(() => { mounted = false; });
+onBeforeUnmount(() => {
+  mounted = false;
+});
 function choices(field) {
   if (field.type === "participant")
     return (props.participants || [])
@@ -69,6 +71,9 @@ async function handleFile(event, field) {
       v-if="!field.editOnly || editing"
       :label="field.label"
       :prop="field.key"
+      :class="{
+        'field-wide': ['textarea', 'file', 'participant'].includes(field.type),
+      }"
       ><el-input
         v-if="['text', 'password', 'textarea'].includes(field.type)"
         v-model="model[field.key]"
